@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/plate.tscn" id="2_plate"]
 
 [node name="Main" type="Control"]
 anchors_preset = 15
@@ -8,4 +9,132 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 script = ExtResource("1_main")
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.545, 0.36, 0.22, 1)
+
+[node name="Plates" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Plate1" parent="Plates" instance=ExtResource("2_plate")]
+offset_left = 24.0
+offset_top = 130.0
+offset_right = 248.0
+offset_bottom = 450.0
+plate_index = 0
+
+[node name="Plate2" parent="Plates" instance=ExtResource("2_plate")]
+offset_left = 248.0
+offset_top = 130.0
+offset_right = 472.0
+offset_bottom = 450.0
+plate_index = 1
+
+[node name="Plate3" parent="Plates" instance=ExtResource("2_plate")]
+offset_left = 472.0
+offset_top = 130.0
+offset_right = 696.0
+offset_bottom = 450.0
+plate_index = 2
+
+[node name="Plate4" parent="Plates" instance=ExtResource("2_plate")]
+offset_left = 24.0
+offset_top = 450.0
+offset_right = 248.0
+offset_bottom = 770.0
+plate_index = 3
+
+[node name="Plate5" parent="Plates" instance=ExtResource("2_plate")]
+offset_left = 248.0
+offset_top = 450.0
+offset_right = 472.0
+offset_bottom = 770.0
+plate_index = 4
+
+[node name="Plate6" parent="Plates" instance=ExtResource("2_plate")]
+offset_left = 472.0
+offset_top = 450.0
+offset_right = 696.0
+offset_bottom = 770.0
+plate_index = 5
+
+[node name="Plate7" parent="Plates" instance=ExtResource("2_plate")]
+offset_left = 24.0
+offset_top = 770.0
+offset_right = 248.0
+offset_bottom = 1090.0
+plate_index = 6
+
+[node name="Plate8" parent="Plates" instance=ExtResource("2_plate")]
+offset_left = 248.0
+offset_top = 770.0
+offset_right = 472.0
+offset_bottom = 1090.0
+plate_index = 7
+
+[node name="Plate9" parent="Plates" instance=ExtResource("2_plate")]
+offset_left = 472.0
+offset_top = 770.0
+offset_right = 696.0
+offset_bottom = 1090.0
+plate_index = 8
+
+[node name="Title" type="Label" parent="."]
+anchor_right = 1.0
+offset_top = 16.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.97, 0.95, 0.9, 1)
+theme_override_font_sizes/font_size = 40
+text = "Food Sort"
+horizontal_alignment = 1
+
+[node name="Counter" type="Label" parent="."]
+anchor_right = 1.0
+offset_top = 68.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.97, 0.95, 0.9, 1)
+theme_override_font_sizes/font_size = 26
+text = "Trios cleared: 0 / 12"
+horizontal_alignment = 1
+
+[node name="Completion" type="Label" parent="."]
+anchor_right = 1.0
+offset_top = 1100.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.99, 0.93, 0.6, 1)
+theme_override_font_sizes/font_size = 36
+text = "Level complete!"
+horizontal_alignment = 1
+
+[node name="Restart" type="Button" parent="."]
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -110.0
+offset_top = 1172.0
+offset_right = 110.0
+offset_bottom = 1244.0
+theme_override_font_sizes/font_size = 30
+text = "Restart"
+
+[node name="DragLayer" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[connection signal="pressed" from="Restart" to="." method="_on_restart_pressed"]

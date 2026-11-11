@@ -1,3 +1,4 @@
+@tool
 ## One fruit placeholder visual: a solid colored circle drawn per fruit ID.
 ## Swap the drawing here for sprites later; the rules only use fruit IDs.
 class_name FruitView
@@ -25,7 +26,12 @@ func _draw() -> void:
 	var center := Vector2.ONE * radius
 	if highlighted:
 		draw_circle(center, radius + 6.0, Color(1.0, 1.0, 0.95, 0.35))
-	draw_circle(center, radius, FruitData.color_of(fruit_id))
-	draw_arc(center, radius, 0.0, TAU, 40, FruitData.outline_color_of(fruit_id), 2.5, true)
+	draw_fruit(self, center, radius, fruit_id)
 	if highlighted:
 		draw_arc(center, radius + 2.5, 0.0, TAU, 40, Color(1.0, 1.0, 0.95, 0.9), 2.5, true)
+
+
+## Shares the fruit artwork between the editor preview and the game.
+static func draw_fruit(canvas: CanvasItem, center: Vector2, fruit_radius: float, id: String) -> void:
+	canvas.draw_circle(center, fruit_radius, FruitData.color_of(id))
+	canvas.draw_arc(center, fruit_radius, 0.0, TAU, 40, FruitData.outline_color_of(id), 2.5, true)

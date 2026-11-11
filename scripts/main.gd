@@ -1,115 +1,65 @@
-## Main scene: warm-brown background, the 3x3 plate grid, HUD, restart
-## button and the mouse/touch drag-and-drop controller. Board rules live in
-## board.gd, the level data in level_data.gd and the plate visuals in
-## plate.gd / plate.tscn (instanced nine times).
+## Wires the authored scene to the board and handles mouse and touch drags.
 extends Control
 
-const GRID_ORIGIN := Vector2(24.0, 130.0)
-const CELL_SIZE := Vector2(224.0, 320.0)
-const GRID_COLUMNS := 3
-const GRID_ROWS := 3
-const PLATE_SCENE := preload("res://scenes/plate.tscn")
-
-const BACKGROUND_COLOR := Color(0.545, 0.36, 0.22)
-const HUD_TEXT_COLOR := Color(0.97, 0.95, 0.9)
-const COMPLETION_COLOR := Color(0.99, 0.93, 0.6)
-
 ## Drag state: {"plate": int, "slot": int, "view": FruitView, "index": int}.
+## A mouse drag uses index -1.
 var drag: Dictionary = {}
-## True while clear/refill events are animating; input is ignored then.
 var busy := false
-
 var board: Board
-var plates: Array = []
-var drag_layer: Control
-var counter_label: Label
-var completion_label: Label
-var restart_button: Button
+var plates: Array[PlateView] = []
+
+@onready var drag_layer: Control = $DragLayer
+@onready var counter_label: Label = $Counter
+@onready var completion_label: Label = $Completion
+@onready var restart_button: Button = $Restart
 
 
 func _ready() -> void:
-	_build_hud()
-	_build_plates()
-	drag_layer = Control.new()
-	drag_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	drag_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(drag_layer)
+	plates.resize(LevelData.STARTING_CONTENTS.size())
+	for plate: PlateView in $Plates.get_children():
+		plates[plate.plate_index] = plate
+	get_window().focus_exited.connect(_cancel_drag)
 	board = Board.new()
 	board.load_save()
 	_refresh_all()
-	_update_hud()
 
 
-func _build_hud() -> void:
-	var background := ColorRect.new()
-	background.color = BACKGROUND_COLOR
-	background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	background.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(background)
-
-	var title_label := _add_centered_label("Food Sort", 40, 16, HUD_TEXT_COLOR)
-	add_child(title_label)
-	counter_label = _add_centered_label("", 26, 68, HUD_TEXT_COLOR)
-	add_child(counter_label)
-	completion_label = _add_centered_label("Level complete!", 36, 1100, COMPLETION_COLOR)
-	completion_label.visible = false
-	add_child(completion_label)
-
-	restart_button = Button.new()
-	restart_button.text = "Restart"
-	restart_button.add_theme_font_size_override("font_size", 30)
-	restart_button.custom_minimum_size = Vector2(220.0, 72.0)
-	restart_button.position = Vector2(250.0, 1172.0)
-	restart_button.pressed.connect(_on_restart_pressed)
-	add_child(restart_button)
-
-
-func _add_centered_label(text: String, font_size: int, y: float, color: Color) -> Label:
-	var label := Label.new()
-	label.text = text
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", color)
-	label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	label.offset_top = y
-	return label
-
-
-func _build_plates() -> void:
-	var plate_scene: PackedScene = PLATE_SCENE
-	for row in GRID_ROWS:
-		for column in GRID_COLUMNS:
-			var plate: PlateView = plate_scene.instantiate()
-			plate.setup(row * GRID_COLUMNS + column)
-			plate.position = GRID_ORIGIN + Vector2(column, row) * CELL_SIZE
-			plate.size = CELL_SIZE
-			add_child(plate)
-			plates.append(plate)
-
-
-
-## Unified mouse and touch input. With touch-from-mouse emulation enabled,
-## duplicate events are harmless: pickup only starts when nothing is held
-## and release only acts while something is held.
+## Let GUI controls handle presses first. Once a fruit is held, use _input
+## so a release over a button or outside the board still ends the drag.
 func _unhandled_input(event: InputEvent) -> void:
-	if busy:
+	if busy or not drag.is_empty():
 		return
-	if event is InputEventMouseButton:
-		if event.button_index != MOUSE_BUTTON_LEFT:
+	if event is InputEventScreenTouch and event.pressed:
+		_try_pickup(event.position, event.index)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		_try_pickup(event.position, -1)
+	if not drag.is_empty():
+		get_viewport().set_input_as_handled()
+
+
+func _input(event: InputEvent) -> void:
+	if drag.is_empty():
+		return
+	var index: int = drag["index"]
+	if index == -1:
+		if event is InputEventMouseMotion:
+			_update_drag(event.position)
+		elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+			_finish_drag(event.position)
+		else:
 			return
-		if event.pressed:
-			_try_pickup(event.position, -1)
-		elif not drag.is_empty():
-			_finish_drag(event.position)
-	elif event is InputEventScreenTouch:
-		if event.pressed:
-			_try_pickup(event.position, event.index)
-		elif not drag.is_empty() and drag["index"] == event.index:
-			_finish_drag(event.position)
-	elif not drag.is_empty() and event is InputEventScreenDrag and event.index == drag["index"]:
+	elif event is InputEventScreenDrag and event.index == index:
 		_update_drag(event.position)
-	elif not drag.is_empty() and event is InputEventMouseMotion:
-		_update_drag(event.position)
+	elif event is InputEventScreenTouch and event.index == index and not event.pressed:
+		_finish_drag(event.position, event.canceled)
+	else:
+		return
+	get_viewport().set_input_as_handled()
+
+
+func _cancel_drag() -> void:
+	if not drag.is_empty():
+		_finish_drag(Vector2.ZERO, true)
 
 
 ## Picks up the single fruit circle nearest to the press point.
@@ -134,7 +84,6 @@ func _try_pickup(position: Vector2, touch_index: int) -> void:
 	var view := FruitView.new(fruit, PlateView.FRUIT_RADIUS)
 	view.highlighted = true
 	view.scale = Vector2.ONE * 1.1
-	view.position = position - Vector2.ONE * PlateView.FRUIT_RADIUS
 	drag_layer.add_child(view)
 	plates[best_plate].set_slot_hidden(best_slot, true)
 	drag = {"plate": best_plate, "slot": best_slot, "view": view, "index": touch_index}
@@ -146,7 +95,8 @@ func _try_pickup(position: Vector2, touch_index: int) -> void:
 func _update_drag(position: Vector2) -> void:
 	if drag.is_empty():
 		return
-	drag["view"].position = position - Vector2.ONE * PlateView.FRUIT_RADIUS
+	drag["view"].position = drag_layer.get_global_transform_with_canvas().affine_inverse() * position \
+		- Vector2.ONE * PlateView.FRUIT_RADIUS
 	var destination := _find_destination(position)
 	var valid := destination != -1 and board.can_drop_on(destination, drag["plate"])
 	for plate in plates:
@@ -162,7 +112,7 @@ func _find_destination(position: Vector2) -> int:
 	for plate in plates:
 		var center: Vector2 = plate.drop_center_global()
 		var radii: Vector2 = plate.drop_radii()
-		var delta: Vector2 = position - center
+		var delta: Vector2 = plate.get_global_transform_with_canvas().affine_inverse() * position - plate.drop_center()
 		if (delta.x * delta.x) / (radii.x * radii.x) + (delta.y * delta.y) / (radii.y * radii.y) > 1.0:
 			continue
 		var distance: float = center.distance_to(position)
@@ -172,12 +122,14 @@ func _find_destination(position: Vector2) -> int:
 	return best_plate
 
 
-func _finish_drag(position: Vector2) -> void:
+func _finish_drag(position: Vector2, canceled: bool = false) -> void:
 	var view: FruitView = drag["view"]
 	var from_plate: int = drag["plate"]
 	var from_slot: int = drag["slot"]
-	drag = {}
-	var destination := _find_destination(position)
+	drag.clear()
+	for plate in plates:
+		plate.highlight = false
+	var destination := -1 if canceled else _find_destination(position)
 	if destination != -1 and board.can_drop_on(destination, from_plate):
 		view.queue_free()
 		var events: Array = board.apply_move(from_plate, from_slot, destination)
@@ -190,20 +142,23 @@ func _finish_drag(position: Vector2) -> void:
 ## Sends the fruit back to its original slot without changing the board.
 func _return_fruit(view: FruitView, plate_index: int, slot: int) -> void:
 	var plate: PlateView = plates[plate_index]
-	var target: Vector2 = plate.slot_center_global(slot) - Vector2.ONE * PlateView.FRUIT_RADIUS
+	_set_busy(true)
+	var target: Vector2 = drag_layer.get_global_transform_with_canvas().affine_inverse() * plate.slot_center_global(slot) \
+		- Vector2.ONE * PlateView.FRUIT_RADIUS
 	var tween := create_tween()
 	tween.tween_property(view, "position", target, 0.15).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.parallel().tween_property(view, "scale", Vector2.ONE, 0.15)
 	await tween.finished
 	view.queue_free()
 	plate.set_slot_hidden(slot, false)
+	_set_busy(false)
 
 
 ## Animates the board events of one move in order: the moved fruit lands,
 ## trios scale-and-fade, preview refills pop in and revealed batches appear.
 ## Input is blocked while this plays.
 func _play_events(events: Array) -> void:
-	busy = true
+	_set_busy(true)
 	for event in events:
 		match event["type"]:
 			Board.EVENT_MOVED:
@@ -217,8 +172,7 @@ func _play_events(events: Array) -> void:
 				_refresh_plate(event["source"], event)
 				_refresh_plate(event["plate"], event)
 	_refresh_all()
-	_update_hud()
-	busy = false
+	_set_busy(false)
 
 
 ## Applies one event snapshot to a plate: contents plus its preview.
@@ -236,15 +190,24 @@ func _refresh_all() -> void:
 	_update_hud()
 
 
+func _set_busy(value: bool) -> void:
+	busy = value
+	restart_button.disabled = value
+
+
 func _update_hud() -> void:
 	counter_label.text = "Trios cleared: %d / %d" % [board.cleared_count(), LevelData.TOTAL_TRIOS]
 	completion_label.visible = board.is_complete()
 
 
 func _on_restart_pressed() -> void:
+	if busy:
+		return
 	if not drag.is_empty():
 		drag["view"].queue_free()
-		drag = {}
+		drag.clear()
+	for plate in plates:
+		plate.highlight = false
 	board.reset_to_level()
 	board.save()
 	_refresh_all()

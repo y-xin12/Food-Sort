@@ -15,6 +15,7 @@ func _ready() -> void:
 	_remove_save()
 	_test_level_data()
 	await _test_drop_geometry()
+	await _test_scene_input()
 	_test_opening_match_and_refill()
 	_test_invalid_drops()
 	_test_mixed_plate_stays()
@@ -103,6 +104,66 @@ func _test_drop_geometry() -> void:
 		"pressing on a fruit picks up its slot")
 	remove_child(main)
 	main.free()
+
+
+func _test_scene_input() -> void:
+	var main = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	var viewport := get_viewport()
+	var source: Vector2 = main.plates[3].slot_center_global(0)
+	var destination: Vector2 = main.plates[0].drop_center_global()
+	var mouse := InputEventMouseButton.new()
+	mouse.button_index = MOUSE_BUTTON_LEFT
+	mouse.position = source
+	mouse.pressed = true
+	viewport.push_input(mouse, true)
+	_check(not main.drag.is_empty(), "mouse can pick up fruit through the authored scene")
+
+	var motion := InputEventMouseMotion.new()
+	motion.position = destination
+	viewport.push_input(motion, true)
+	_check(main.plates[0].highlight, "mouse movement highlights the valid destination")
+	var mouse_release := InputEventMouseButton.new()
+	mouse_release.button_index = MOUSE_BUTTON_LEFT
+	mouse_release.position = destination
+	viewport.push_input(mouse_release, true)
+	await get_tree().create_timer(0.5).timeout
+	_check(main.drag.is_empty() and not main.busy and not main.plates[0].highlight,
+		"mouse release finishes the clear animation and clears highlighting")
+	_check(main.board.cleared_trios == ["apple"] and main.board.contents[0] == ["banana", "orange", "banana"],
+		"mouse drag clears the opening trio and refills from its preview")
+
+	source = main.plates[4].slot_center_global(0)
+	var touch := InputEventScreenTouch.new()
+	touch.index = 1
+	touch.position = source
+	touch.pressed = true
+	viewport.push_input(touch, true)
+	_check(not main.drag.is_empty(), "touch can pick up fruit through the authored scene")
+	var touch_motion := InputEventScreenDrag.new()
+	touch_motion.index = 1
+	touch_motion.position = main.plates[6].drop_center_global()
+	viewport.push_input(touch_motion, true)
+	_check(main.plates[6].highlight, "touch movement highlights the valid destination")
+	var touch_cancel := InputEventScreenTouch.new()
+	touch_cancel.index = 1
+	touch_cancel.position = touch_motion.position
+	touch_cancel.canceled = true
+	viewport.push_input(touch_cancel, true)
+	await get_tree().create_timer(0.25).timeout
+	_check(main.drag.is_empty() and not main.plates[6].highlight and main.board.contents[6].is_empty()
+		and main.plates[4].find_fruit_slot_at(source) == 0, "canceled touch returns fruit without moving it")
+
+	mouse.position = source
+	viewport.push_input(mouse, true)
+	mouse_release.position = main.restart_button.get_global_rect().get_center()
+	viewport.push_input(mouse_release, true)
+	await get_tree().create_timer(0.25).timeout
+	_check(main.drag.is_empty() and main.board.cleared_count() == 1
+		and main.plates[4].find_fruit_slot_at(source) == 0, "release over Restart returns fruit without restarting")
+	remove_child(main)
+	main.free()
+	_remove_save()
 
 
 func _test_opening_match_and_refill() -> void:

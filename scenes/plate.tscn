@@ -3,4 +3,7 @@
 [ext_resource type="Script" path="res://scripts/plate.gd" id="1_plate"]
 
 [node name="Plate" type="Control"]
+offset_right = 224.0
+offset_bottom = 320.0
+mouse_filter = 2
 script = ExtResource("1_plate")
